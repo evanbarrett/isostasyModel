@@ -1,0 +1,155 @@
+## --- Initialize code
+
+# Packages
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from IPython.display import HTML
+
+# Constants
+lmbda = 3000e3                          # Characteristic wavelength of displacement [m]
+rho_m = 3300                            # Mantle density [kg/m³]
+rho_i = 917                             # Ice density [kg/m³]
+g = 9.8                                 # Gravitational acceleration [m/s²]
+
+## --- (1) Lithospheric deformation in response to ice loading at steady state
+
+# Define ice thickness and calculate deformation
+H = np.arange(0, 3000)    # Ice thickness [m]
+wm = rho_i / rho_m * H    # Deformation [m]
+
+# Plot
+plt.figure(figsize=(6, 4))
+plt.plot(H, wm, color=plt.cm.viridis(0))
+plt.xlabel('Ice thickness [m]')
+plt.ylabel('Lithospheric deformation [m]')
+plt.show()
+
+## --- (2) Dependence of rebound rate on mantle viscocity
+
+# What would the graph look like if the mantle viscosity was μ=1022 or μ=1020,
+# assuming every other parameter stayed the same?
+
+# Different viscosities to consider
+etas = np.arange(1, 20, 2) * 1e20
+
+# Constants
+wm = -300         # Initial downlifted displacement
+lmbda = 3000e3    # Characteristic wavelength
+rho = 3300        # Mantle density
+g = 9.8           # Gravitational acceleration
+
+# Time parameters
+T = 10000         # Total time
+dt = 100          # Time step
+time = np.arange(0, T, dt)
+
+# Plot
+plt.figure(figsize=(10, 6))
+for i in range(len(etas)):
+    # Calculate characteristic time
+    chT = ((4 * np.pi * etas[i]) / (rho * g * lmbda))
+    chTyrs = chT / (24 * 365 * 3600) # convert to seconds
+
+    # Calculate topography over time for each viscosity
+    w = wm * np.exp(-(T - time) / chTyrs)
+    plt.plot(time, w,
+             label=f'Viscosity = {etas[i]}', color=plt.cm.viridis(i / len(etas)),
+             )
+
+plt.xlabel('Years Before Present')
+plt.ylabel('Topography [m]')
+plt.legend(loc='lower right')
+plt.xlim([0,T])
+plt.gca().invert_xaxis()  # Flip the x-axis
+plt.show()
+
+## --- (3) Change in topography after unloading
+
+# What would the profile look like at t=2000, t=6000, t=10000, and t=14000 years
+# after the unloading of the ice sheet? What is the direction of fluid flow in
+# this system?
+
+H = 1500                                # Ice thickness [m]
+mu = 1e21                               # Mantle viscocity [kg/m⋅s]
+
+## --- (3) Visualize the change in topography over time after unloading
+
+# Temporal parameters
+T = 15000                               # Total time [yr]
+nstep = 20                              # Number of time steps to plot
+dt = T/nstep                            # Size of time step
+time = np.flip(np.arange(0, T, dt))     # Temporal grid, flipped to show unloading
+
+# Spatial parameters
+L = 3000e3                              # Total length of the profile [m]
+Nx = 1000                               # Number of spatial points
+x = np.linspace(0, L, Nx)               # Spatial grid
+w_profile = np.zeros((Nx, len(time)))   # Initial topographic profile
+
+# Calculate topography
+chT = (4 * np.pi * mu / (rho_m * g * lmbda))    # Characteristic relaxation time
+chTyrs = chT / (24 * 365 * 3600)                # Convert to years
+wm = rho_i / rho_m * H                          # Initial displacement from ice
+
+for i, t in enumerate(time):
+    w = wm * np.cos(np.pi * x / (L / 2)) * np.exp(-(T - t) / chTyrs)
+    w_profile[:, i] = w
+
+# Define function to update the data in the series
+def update(frame):
+    # Draw old frames
+    for i in (0,frame):
+      plt.plot(x, w_profile[:, i],
+              color=plt.cm.viridis(i / len(time)),
+              label=f'{int(time[i])} years'
+              )
+    # Update new frames
+    line.set_ydata(w_profile[:, frame])
+    line.set_color(plt.cm.viridis(frame / nstep))
+    return line
+
+# Create figure and axis to update
+fig, ax = plt.subplots(figsize=(6, 4))
+line = ax.plot(x, w_profile[:, 0],
+             color=plt.cm.viridis(0 / nstep),
+             label=f'{int(time[0])} years'
+            )[0]
+ax.set(xlim=[0, 3e6], ylim=[-450, 450],
+       xlabel='Distance [m]',
+       ylabel=f'Elevation: vert. exaggeration {int(3e6/900)}x [m]'
+       )
+
+norm = mpl.colors.Normalize(vmin=0, vmax=T)
+fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=plt.cm.viridis), ax=ax,
+            #  orientation='horizontal',
+             label='Years after unloading'
+             )
+
+# Make animation
+ani = animation.FuncAnimation(fig=fig, func=update, frames=nstep, interval=100)
+HTML(ani.to_html5_video())
+
+## --- (4) Plot topography for different Ice Thickness values
+
+plt.figure(figsize=(10, 6))
+H_values = [2250, 1500, 750]
+for i in range(len(H_values)):
+    H = H_values[i]
+    chT = (4 * np.pi * mu / (rho_m * g * lmbda))    # Characteristic relaxation time
+    chTyrs = chT / (24 * 365 * 3600)                # Convert to years
+    wm = rho_i / rho_m * H                          # Initial displacement from ice
+
+    w = wm * np.cos(np.pi * x / (L / 2))
+    plt.plot(x, w,
+             label=f'Ice Thickness={H} m',
+             color=plt.cm.viridis(i / len(H_values))
+            )
+
+plt.xlabel('Distance [m]')
+plt.ylabel('Elevation [m]')
+plt.title(f'Topography at Initial State')
+plt.legend()
+plt.show()
+
